@@ -78,6 +78,13 @@ and no package manifest: the whole thing is one `swiftc` line over one
                     # focus for a few seconds. Interactive, needs Accessibility.
 ```
 
+If you are going to commit to a fork, turn the gates on once:
+
+```sh
+bash .githooks/install.sh          # blocks em dashes and private tells per commit
+bash scripts/release-check.sh      # the whole-tree version, before you push
+```
+
 ### Grant two permissions
 
 macOS will ask, and the app shows a card until both are given:

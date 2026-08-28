@@ -33,7 +33,26 @@ it depends on the single-file layout.
 ./test-delivery.sh   # does a take land in the caret? Opens TextEdit, takes focus.
 ```
 
+```sh
+bash .githooks/install.sh          # once per clone: turns the commit gates on
+bash scripts/release-check.sh      # the whole-tree version, run before pushing
+```
+
 `build.sh` is idempotent and quits a running copy first.
+
+**THE LEAK GATES ARE NOT OPTIONAL AND THEY ARE NOT DECORATION.** This repo was a
+private personal tool for weeks before it was made public, so the risk is not
+"someone might paste a secret one day", it is "something is already in here".
+`.githooks/pre-commit` blocks a commit whose staged ADDITIONS carry an em dash
+or a private tell. `scripts/release-check.sh` scans EVERY TRACKED FILE, which is
+the one that catches what landed before the hook existed. It found a real
+unreleased product name in `main.swift` the first time it ran.
+
+The denylist lives at `.githooks/denylist.local` and is **gitignored on
+purpose**: a list of the things that must never leak is itself a thing that must
+never leak. `denylist.example` shows the shape. With no local list the release
+check FAILS rather than passing silently, because a leak gate that quietly
+no-ops is worse than none: you stop looking.
 
 There is no linter, no formatter and no CI. Those two scripts are the gates and
 both are real. **`test-delivery.sh` is interactive**: it opens a real window,

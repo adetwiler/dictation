@@ -674,7 +674,7 @@ struct GlossaryCorrector {
             // A SINGLE-word canonical is registered as its own key only when a
             // garble already proves the term is really spoken. Registering every
             // one-word term unconditionally is the homograph trap: a term that is
-            // also an ordinary English word ("Tyro", "Arc", "Notion") silently
+            // also an ordinary English word ("Arc", "Notion", "Swift") silently
             // capitalizes every innocent use of it.
             let isMultiWord = term.correct.contains(" ") || term.correct.contains("-")
             if isMultiWord { forms.append(term.correct) }

@@ -7,3 +7,5 @@ Dictation.app/
 sounds/*.wav
 
 .DS_Store
+# The real denylist is machine-local: your list of secrets is itself a secret.
+.githooks/denylist.local

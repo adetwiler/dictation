@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+#
+# pre-commit: two blocking gates for this repo.
+#   (a) em-dash gate: block any staged ADDED line containing an em dash or en dash.
+#   (b) bleed gate:    block any staged ADDED line containing a private tell.
+#
+# Both scan only the staged additions (what this commit would introduce), so an
+# existing line elsewhere never blocks an unrelated commit. Install with
+# .githooks/install.sh (sets core.hooksPath). Whole-tree version:
+# scripts/release-check.sh. Each gate is a past mistake turned into a guard.
+#
+# Portable: uses POSIX awk only (no gawk 3-arg match), so it runs on the BSD awk
+# that ships with macOS as well as on gawk.
+
+set -euo pipefail
+
+# THE FIRST COMMIT OF A REPO HAS NO HEAD, and `git diff --cached` is fatal without one.
+# Found 2026-08-04 adopting this kit into a fresh repo: `set -e` plus a 128 from the very
+# first diff meant the hook died before running a single check, and git reported nothing
+# useful, so the commit silently did not happen. A gate that cannot run on the commit that
+# creates the repo is a gate that is off for exactly the commit that imports everything.
+# Diffing against the empty tree makes the initial commit look like what it is: all adds.
+if git rev-parse --verify --quiet HEAD >/dev/null; then
+  DIFF_BASE=""
+else
+  DIFF_BASE="$(git hash-object -t tree /dev/null)"
+fi
+staged_diff() { git diff --cached ${DIFF_BASE:+"$DIFF_BASE"} "$@"; }
+
+# Emit every staged ADDED line as "path:newlineno: content".
+# -U0 means no context lines, so every non-header line in a hunk that starts with
+# '+' is an addition and advances the new-file line counter; '-' lines do not.
+added_lines() {
+  # NO self-exclusions. The gate files are scanned like everything else: the
+  # denylist lives outside the tree (denylist.local, gitignored), so a match
+  # in these files is a real leak, not the pattern matching itself. An earlier
+  # version embedded the denylist here, which made the leak scanner ITSELF
+  # the leak; an adversarial audit caught it. Do not regress this.
+  staged_diff --unified=0 --no-color -- . | awk '
+    /^\+\+\+ / {
+      file=$0
+      sub(/^\+\+\+ b\//,"",file)
+      sub(/^\+\+\+ /,"",file)
+      next
+    }
+    /^@@ / {
+      plus=$3            # e.g. "+3,4" or "+3"
+      sub(/^\+/,"",plus)
+      sub(/,.*/,"",plus)
+      ln=plus+0
+      next
+    }
+    /^\+/ {
+      print file ":" ln ": " substr($0,2)
+      ln++
+    }
+  '
+}
+
+fail=0
+stream="$(added_lines || true)"
+
+# --- Gate (a): em dash (U+2014) and en dash (U+2013) ---
+# Built from byte escapes so this file never contains the characters it bans
+# (the hook scans itself now; a literal dash here would block committing the
+# hook). UTF-8: em dash e2 80 94, en dash e2 80 93.
+EMDASH="$(printf '\342\200\224')"
+ENDASH="$(printf '\342\200\223')"
+emdash_hits="$(printf '%s\n' "$stream" | grep -F -e "$EMDASH" -e "$ENDASH" || true)"
+if [ -n "$emdash_hits" ]; then
+  echo "BLOCKED: staged change adds an em dash or en dash:"
+  printf '%s\n' "$emdash_hits" | sed 's/^/  /'
+  echo ""
+  echo "Use a period, comma, colon, or parentheses instead. This guard exists"
+  echo "because dashes slip in by hand and we remove them by policy, not by eye."
+  fail=1
+fi
+
+# --- Gate (b): private tells (bleed check) ---
+# The terms live in .githooks/denylist.local (gitignored), one per line,
+# comments allowed. Missing or empty denylist REFUSES the commit: a bleed
+# gate with nothing to check silently passes everything, which is the worst
+# failure mode a guard can have. Copy denylist.example and fill it in.
+denylist_file="$(git rev-parse --show-toplevel)/.githooks/denylist.local"
+if [ ! -f "$denylist_file" ]; then
+  echo "BLOCKED: .githooks/denylist.local is missing."
+  echo "Copy .githooks/denylist.example to .githooks/denylist.local and fill in"
+  echo "your real private terms (it is gitignored, never committed)."
+  exit 1
+fi
+DENYLIST="$(grep -v '^\s*#' "$denylist_file" | grep -v '^\s*$' | paste -sd'|' -)"
+if [ -z "$DENYLIST" ]; then
+  echo "BLOCKED: .githooks/denylist.local has no terms in it."
+  exit 1
+fi
+
+# FAIL CLOSED ON A BROKEN PATTERN (2026-07-30). `|| true` swallowed grep's exit
+# code, and grep exits >1 when the PATTERN itself is invalid - so one unescaped
+# metacharacter in one denylist TERM made this gate return nothing and pass
+# everything, silently, on a public-bound repo. A guard that fails open is worse
+# than no guard, because it is trusted. 0 = match, 1 = no match, >1 = error.
+set +e
+bleed_hits="$(printf '%s\n' "$stream" | grep -iE "$DENYLIST" 2>/tmp/bleed.err)"
+bleed_rc=$?
+set -e
+if [ "$bleed_rc" -gt 1 ]; then
+  echo "BLOCKED: the bleed gate could not run - the denylist is not a valid pattern."
+  sed 's/^/  /' /tmp/bleed.err
+  echo "  Escape regex metacharacters in .githooks/denylist.local (e.g. ( ) [ ] | + ?)."
+  exit 1
+fi
+if [ -n "$bleed_hits" ]; then
+  echo "BLOCKED: staged change adds a private tell (bleed check):"
+  printf '%s\n' "$bleed_hits" | sed 's/^/  /'
+  echo ""
+  echo "This is a public-bound repo. Scrub the private codename, path, key, or"
+  echo "product name before committing. See scripts/release-check.sh for the full"
+  echo "tree scan. This repo was a private personal tool before it was public."
+  fail=1
+fi
+
+if [ "$fail" -ne 0 ]; then
+  echo ""
+  echo "Commit rejected. Fix the lines above and re-commit."
+  exit 1
+fi
+
+exit 0
