@@ -1,0 +1,9 @@
+# build output
+dictation
+Dictation.app/
+*.dSYM/
+
+# optional cue sounds, if you drop your own in
+sounds/*.wav
+
+.DS_Store

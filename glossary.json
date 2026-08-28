@@ -1,0 +1,23 @@
+{
+  "_readme": "The correction pairs that run AFTER the recognizer and BEFORE the paste. These are examples. Replace them with your own jargon, or leave them and put yours in ~/Library/Application Support/dictation/glossary.json, which is merged on top of this file and survives updates.",
+
+  "_how_it_works": "A garble is matched EXACTLY after squashing case, spaces, hyphens and apostrophes. 'engine x' and 'Engine-X' and 'ENGINEX' all squash to 'enginex'. Nothing fuzzy, no edit distance, so an ordinary English word can never be rewritten into one of your terms.",
+
+  "_two_rules_worth_knowing": [
+    "A one-word 'correct' with NO garbles is never registered at all. That is deliberate: it is how you list a term that is also an ordinary English word (Arc, Notion, Sonnet) without capitalizing every innocent use of it.",
+    "A garble that is ALSO another term's canonical form is dropped automatically (the cross-term fence). You cannot make two rows fight."
+  ],
+
+  "terms": [
+    { "correct": "Kubernetes", "garbles": ["cooper netties", "kubernets", "koobernetties"] },
+    { "correct": "kubectl", "garbles": ["cube cuddle", "koob control", "cube c t l"] },
+    { "correct": "nginx", "garbles": ["engine x", "engine ex"] },
+    { "correct": "Postgres", "garbles": ["post gres", "post grass"] },
+    { "correct": "GitHub", "garbles": ["get hub", "git hub"] },
+    { "correct": "OAuth", "garbles": ["oh auth", "o auth"] },
+    { "correct": "webhook", "garbles": ["web hook"] },
+    { "correct": "Alsop", "garbles": ["all sop"] },
+
+    { "correct": "Arc", "garbles": [] }
+  ]
+}
